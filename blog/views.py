@@ -19,6 +19,18 @@ class EntryView(DetailView):
 """
 
 # ----------------------------------
+def convert_body(request):
+    body_unicoded = request.body.decode('utf-8')
+    body = body_unicoded.replace('&', '=')
+    body = body.replace('+', ' ')
+    body = body.split('=')
+
+    keys = [body[i] for i in range(len(body)) if i % 2 == 0]
+    values = [body[i] for i in range(1, len(body)) if i % 2 != 0]
+    dict_of_values = dict(zip(keys, values))
+    return dict_of_values
+
+
 class EntriesView(ListView):
     #model = Entry
     #template_name = 'blog/homepage.html'
@@ -45,15 +57,9 @@ class AddEntryView(CreateView):
     fields = ['title', 'text', 'tags', 'authors']
 
     def post(self, request, *args, **kwargs):
+        """ Create object via POST method"""
 
-        body_unicoded = request.body.decode('utf-8')
-        body = body_unicoded.replace('&', '=')
-        body = body.replace('+', ' ')
-        body = body.split('=')
-
-        keys= [body[i] for i in range(len(body)) if i % 2 == 0]
-        values = [body[i] for i in range(1, len(body)) if i % 2 != 0]
-        dict_of_values = dict(zip(keys, values))
+        dict_of_values = convert_body(request)
 
         new = Entry.objects.create(title=dict_of_values['title'], text=dict_of_values['text'])
         tags = [Tag.objects.get(pk=int(i)) for i in dict_of_values['tags'] if i != ' ']
@@ -77,28 +83,24 @@ class EditEntryView(UpdateView):
 
 
     def post(self, request, *args, **kwargs):
+        """ Update object via POST method"""
 
         self.object = self.get_object()
         last_data = serializers.serialize('json', Entry.objects.filter(pk=self.object.id),
                                           use_natural_foreign_keys=True, use_natural_primary_keys=True)
-        body_unicoded = request.body.decode('utf-8')
-        body = body_unicoded.replace('&', '=')
-        body = body.replace('+', ' ')
-        body = body.split('=')
 
-        keys = [body[i] for i in range(len(body)) if i % 2 == 0]
-        values = [body[i] for i in range(1, len(body)) if i % 2 != 0]
-        dict_of_values = dict(zip(keys, values))
+        dict_of_values = convert_body(request)
 
         for key in dict_of_values:
-            if key == 'tags':
+            if key == 'tags' and dict_of_values[key] != '':
                 tags = [Tag.objects.get(pk=int(i)) for i in dict_of_values['tags'] if i != ' ']
                 self.object.tags.set(tags)
-            elif key == 'authors':
+            elif key == 'authors' and dict_of_values[key] != '':
                 authors = [User.objects.get(pk=int(i)) for i in dict_of_values['authors'] if i != ' ']
                 self.object.authors.set(authors)
             else:
-                self.object.__dict__[key] = dict_of_values[key]
+                if dict_of_values[key] != '':
+                    self.object.__dict__[key] = dict_of_values[key]
         self.object.save()
 
         data = serializers.serialize('json', Entry.objects.filter(pk=self.object.id),
