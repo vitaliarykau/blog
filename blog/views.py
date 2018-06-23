@@ -20,14 +20,19 @@ class EntryView(DetailView):
 
 # ----------------------------------
 def convert_body(request):
+    """ Convert a request body from format:
+    title=some+text&next=another+text
+    to dictionary
+    """
     body_unicoded = request.body.decode('utf-8')
     body = body_unicoded.replace('&', '=')
     body = body.replace('+', ' ')
     body = body.split('=')
 
-    keys = [body[i] for i in range(len(body)) if i % 2 == 0]
-    values = [body[i] for i in range(1, len(body)) if i % 2 != 0]
-    dict_of_values = dict(zip(keys, values))
+    keys = [body[i].strip() for i in range(len(body)) if i % 2 == 0]
+    values = [body[i].strip() for i in range(1, len(body)) if i % 2 != 0]
+    dict_of_values = {keys[i]:values[i] for i in range(len(keys)) if values[i] != ""}
+
     return dict_of_values
 
 
@@ -92,15 +97,14 @@ class EditEntryView(UpdateView):
         dict_of_values = convert_body(request)
 
         for key in dict_of_values:
-            if key == 'tags' and dict_of_values[key] != '':
-                tags = [Tag.objects.get(pk=int(i)) for i in dict_of_values['tags'] if i != ' ']
+            if key == 'tags':
+                tags = [Tag.objects.get(pk=int(i)) for i in dict_of_values['tags'].split()]
                 self.object.tags.set(tags)
-            elif key == 'authors' and dict_of_values[key] != '':
-                authors = [User.objects.get(pk=int(i)) for i in dict_of_values['authors'] if i != ' ']
+            elif key == 'authors':
+                authors = [User.objects.get(pk=int(i)) for i in dict_of_values['authors'].split()]
                 self.object.authors.set(authors)
             else:
-                if dict_of_values[key] != '':
-                    self.object.__dict__[key] = dict_of_values[key]
+                self.object.__dict__[key] = dict_of_values[key]
         self.object.save()
 
         data = serializers.serialize('json', Entry.objects.filter(pk=self.object.id),
